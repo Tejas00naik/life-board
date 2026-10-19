@@ -244,10 +244,22 @@ async function start() {
   document.getElementById("app").hidden = false;
   try { await pull(); ready = true; setSync("ok", "Synced"); }
   catch (e) {
-    if (e === 401 || e === 403 || e === 404) { signOut("That token can't open life-board-data. Check its repository access and Contents permission."); return; }
+    if (e === 401 || e === 403 || e === 404) { signOut(await diagnose(e)); return; }
     setSync("err", "Could not load. Check your connection.");
   }
   render();
+}
+
+// Say exactly which part of the token setup is wrong. A token can be edited on GitHub; no need to make a new one.
+async function diagnose(status) {
+  const fix = "Fix it on GitHub → Settings → Developer settings → Fine-grained tokens → Life Board → Edit, then sign in again with the same token.";
+  try {
+    const me = await fetch("https://api.github.com/user", { cache: "no-store", headers: { Authorization: `Bearer ${token}` } });
+    if (me.status === 401) return "GitHub doesn't recognise this token. It may be cut off. Copy the whole token again (it starts with github_pat_) and paste it.";
+  } catch {}
+  if (status === 404) return "The token works, but it can't see the life-board-data repo. Under Repository access, make sure life-board-data is selected. " + fix;
+  if (status === 403) return "The token can see life-board-data but isn't allowed to read or save tasks. Under Permissions → Repository permissions, set Contents to Read and write. " + fix;
+  return "GitHub refused this token (error " + status + ").";
 }
 function signOut(msg = "") {
   token = null; store("gh_token", null); tasks = []; sha = null; ready = false;
@@ -264,7 +276,7 @@ function signIn() {
 }
 document.getElementById("login").onsubmit = e => { e.preventDefault(); signIn(); };
 // Signing in straight away on paste saves a tap on the phone.
-document.getElementById("token").addEventListener("paste", () => setTimeout(signIn, 0));
+document.getElementById("token").addEventListener("input", e => { if (/^\s*(github_pat_|ghp_)\w{30,}\s*$/.test(e.target.value)) signIn(); });
 document.getElementById("signout").onclick = () => signOut();
 
 // ---- Board ----
