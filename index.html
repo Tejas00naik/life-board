@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#f6f6f4">
+<title>Life Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: quiet four-lane board on laptop, one lane at a time on phone; drag the grip to set priority */
+:root {
+  --bg: #f6f6f4; --surface: #ffffff; --line: #ebebe7; --fg: #18181b; --muted: #75757d; --faint: #a6a6ad;
+  --accent: #18181b;
+  --c-office: #4a63b8; --c-reno: #b07a2a; --c-job: #3f7d5c; --c-personal: #a8475f;
+  --s-pending: #a6a6ad; --s-progress: #4a63b8; --s-blocked: #c0532e; --s-done: #3f7d5c;
+  --shadow: 0 1px 2px rgba(20,20,25,.04), 0 4px 16px rgba(20,20,25,.04);
+  --sans: "Geist", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "Cascadia Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #0f0f11; --surface: #18181b; --line: #26262b; --fg: #ededef; --muted: #9a9aa3; --faint: #5f5f68;
+  --accent: #ededef;
+  --c-office: #8fa3e6; --c-reno: #d6a65e; --c-job: #7fbf9a; --c-personal: #e08aa0;
+  --s-pending: #6b6b74; --s-progress: #8fa3e6; --s-blocked: #e5845f; --s-done: #7fbf9a;
+  --shadow: none; color-scheme: dark } }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { margin: 0 }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px) }
+.wrap { max-width: 1360px; margin: 0 auto; padding-block: 48px 64px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 40px }
+.eyebrow { font: 500 .72rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px }
+h1 { font-weight: 600; font-size: 2rem; line-height: 1.1; letter-spacing: -0.03em; margin: 0 }
+.side { display: flex; align-items: center; gap: 24px; font-size: .82rem; color: var(--muted); flex-wrap: wrap }
+.side label { display: flex; gap: 8px; align-items: center; cursor: pointer }
+.link { background: none; border: 0; padding: 0; color: var(--muted); font-size: .82rem; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
+.sync { display: flex; align-items: center; gap: 8px }
+.sync i { width: 6px; height: 6px; border-radius: 50%; background: var(--s-pending) }
+.sync.ok i { background: var(--s-done) }
+.sync.err i { background: var(--s-blocked) }
+
+.chips { display: none; gap: 4px; overflow-x: auto; margin-bottom: 20px; border-bottom: 1px solid var(--line) }
+.chip { border: 0; background: none; color: var(--muted); padding: 10px 12px; font: 500 .88rem var(--sans); white-space: nowrap; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px }
+.chip[aria-pressed="true"] { color: var(--fg); border-bottom-color: var(--fg) }
+
+.board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start }
+.lane { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0 }
+.lane-head { padding: 22px 22px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.lane-head h2 { font-size: .95rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; display: flex; align-items: center; gap: 10px }
+.lane-head h2::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--cat) }
+.count { font: 400 .75rem var(--mono); color: var(--faint); font-variant-numeric: tabular-nums }
+
+.add { padding: 0 22px 18px; display: grid; gap: 10px }
+.dates { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end }
+.add:not(:focus-within):not(.has-text) .dates { display: none }
+.field { display: grid; gap: 4px; min-width: 0 }
+.field span { font: 500 .66rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--faint) }
+input, select, button { font: inherit; color: inherit }
+input[type=text], input[type=password], input[type=date], select { width: 100%; min-width: 0; background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: .88rem; transition: border-color .15s }
+input[type=text]:hover, input[type=date]:hover, select:hover { border-color: var(--faint) }
+input[type=date] { font: 400 .8rem var(--mono); padding: 8px 8px }
+button.primary { background: var(--accent); color: var(--surface); border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 500; font-size: .85rem; cursor: pointer }
+button:disabled { opacity: .5; cursor: default }
+:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px }
+input:focus { outline: none; border-color: var(--fg) }
+
+ul { list-style: none; margin: 0; padding: 4px 0 10px; border-top: 1px solid var(--line) }
+.task { position: relative; padding: 14px 22px 14px 12px; display: grid; grid-template-columns: 22px 1fr; gap: 0 6px; background: var(--surface); border-radius: 10px }
+.task + .task::before { content: ""; position: absolute; top: 0; left: 40px; right: 22px; border-top: 1px solid var(--line) }
+.grip { cursor: grab; color: var(--faint); opacity: .5; display: grid; place-items: center; height: 22px; touch-action: none; transition: opacity .15s }
+.task:hover .grip { opacity: 1 }
+.grip svg { width: 10px; height: 14px; fill: currentColor }
+.body { min-width: 0; display: grid; gap: 6px }
+.t { font-weight: 450; font-size: .93rem; overflow-wrap: anywhere; cursor: pointer; line-height: 1.4 }
+.task.done .t { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--faint) }
+.meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.when { font: 400 .74rem var(--mono); color: var(--muted); font-variant-numeric: tabular-nums }
+.status { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 2px 0; font-size: .76rem; font-weight: 500; color: var(--muted); cursor: pointer }
+.status i { width: 7px; height: 7px; border-radius: 50%; background: var(--st) }
+.status:hover { color: var(--fg) }
+.empty { padding: 28px 22px; color: var(--faint); font-size: .85rem }
+.sortable-ghost { opacity: .35 }
+.sortable-chosen { box-shadow: 0 8px 28px rgba(20,20,25,.12) }
+
+.edit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px }
+.edit > input[type=text], .edit > .field.full, .edit .row { grid-column: 1 / -1 }
+.edit .row { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 4px }
+.ghost { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: .85rem; cursor: pointer }
+.danger { color: var(--s-blocked); border: 0; padding-left: 0 }
+
+.login { max-width: 440px; margin: 10vh auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); padding: 36px 32px; display: grid; gap: 18px }
+.login h1 { font-size: 1.6rem }
+.login p { margin: 0; color: var(--muted); font-size: .9rem }
+.login ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: .85rem; display: grid; gap: 6px }
+.login a { color: var(--fg) }
+.login code { font: .8rem var(--mono); color: var(--fg) }
+.login .err { color: var(--s-blocked); font-size: .85rem; min-height: 1.2em }
+
+@media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 640px) {
+  .wrap { padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+  header { margin-bottom: 24px }
+  .chips { display: flex }
+  .board { grid-template-columns: 1fr }
+  .lane:not(.active) { display: none }
+  .grip { opacity: 1 }
+  .login { margin-top: 4vh; padding: 28px 22px }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <form class="login" id="login" hidden>
+    <div>
+      <div class="eyebrow">Private tracker</div>
+      <h1>Life Board</h1>
+    </div>
+    <p>Sign in with a GitHub token. Your tasks live in your private repo <code>Tejas00naik/life-board-data</code>.</p>
+    <ol>
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained token</a> on GitHub.</li>
+      <li>Repository access: <b>Only select repositories</b> → <code>life-board-data</code>.</li>
+      <li>Permissions → Repository → <b>Contents: Read and write</b>.</li>
+      <li>Generate, copy and paste it below. You do this once per device.</li>
+    </ol>
+    <input type="password" id="token" placeholder="github_pat_…" autocomplete="off" aria-label="GitHub token">
+    <button class="primary" id="signin">Sign in with GitHub</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+
+  <div id="app" hidden>
+    <header>
+      <div>
+        <div class="eyebrow" id="today"></div>
+        <h1>Life Board</h1>
+      </div>
+      <div class="side">
+        <label><input type="checkbox" id="hideDone"> Hide done</label>
+        <div class="sync" id="sync"><i></i><span>Loading…</span></div>
+        <button class="link" id="signout">Sign out</button>
+      </div>
+    </header>
+    <nav class="chips" id="chips"></nav>
+    <main class="board" id="board"></main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+const FILE_URL = "https://api.github.com/repos/Tejas00naik/life-board-data/contents/tasks.json";
+const CATS = [
+  { id: "office", name: "Office Work", color: "--c-office" },
+  { id: "reno", name: "Renovation", color: "--c-reno" },
+  { id: "job", name: "Job Search", color: "--c-job" },
+  { id: "personal", name: "Personal Important", color: "--c-personal" },
+];
+const STATUSES = [
+  { id: "pending", name: "Pending", color: "--s-pending" },
+  { id: "progress", name: "In progress", color: "--s-progress" },
+  { id: "blocked", name: "Blocked", color: "--s-blocked" },
+  { id: "done", name: "Done", color: "--s-done" },
+];
+const GRIP = `<svg viewBox="0 0 10 14"><circle cx="2" cy="2" r="1.4"/><circle cx="8" cy="2" r="1.4"/><circle cx="2" cy="7" r="1.4"/><circle cx="8" cy="7" r="1.4"/><circle cx="2" cy="12" r="1.4"/><circle cx="8" cy="12" r="1.4"/></svg>`;
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const today = () => new Date().toISOString().slice(0, 10);
+const fmt = d => { if (!d) return ""; const [y, m, day] = d.split("-"); return `${+day} ${MONTHS[m - 1]} ${y}`; };
+const statusOf = id => STATUSES.find(s => s.id === id) || STATUSES[0];
+const rank = t => t.order ?? t.created ?? 0;
+const byPriority = (a, b) => (a.status === "done") - (b.status === "done") || rank(a) - rank(b);
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+let tasks = [], sha = null, ready = false, editing = null, confirmDel = null, dragging = false;
+let active = store("lane") || "office";
+let hideDone = store("hideDone") === "1";
+let token = store("gh_token");
+
+function store(k, v) {
+  try {
+    if (v === undefined) return localStorage.getItem(k);
+    v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v);
+  } catch { return null; }
+}
+function setSync(state, text) {
+  const el = document.getElementById("sync");
+  el.className = "sync " + state;
+  el.querySelector("span").textContent = text;
+}
+
+// ---- GitHub storage: one JSON file in a private repo, written with the file's sha to catch conflicts ----
+const decode = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, "")), c => c.charCodeAt(0)));
+const encode = str => { let s = ""; for (const b of new TextEncoder().encode(str)) s += String.fromCharCode(b); return btoa(s); };
+
+async function gh(method, body) {
+  const res = await fetch(FILE_URL, {
+    method, cache: "no-store",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw res.status;
+  return res.json();
+}
+async function pull() {
+  const f = await gh("GET");
+  sha = f.sha;
+  tasks = JSON.parse(decode(f.content)).tasks || [];
+}
+async function push(message) {
+  const r = await gh("PUT", { message, sha, content: encode(JSON.stringify({ tasks }, null, 2) + "\n") });
+  sha = r.content.sha;
+}
+
+// Writes run one at a time. On a conflict (another device saved first) pull the latest and re-apply.
+let queue = Promise.resolve(), pending = 0;
+function mutate(message, fn) {
+  fn(tasks); render();
+  pending++;
+  queue = queue.then(async () => {
+    setSync("", "Saving…");
+    try { await push(message); }
+    catch (e) {
+      if (e !== 409 && e !== 422) throw e;
+      await pull(); fn(tasks); await push(message);
+    }
+    setSync("ok", "Saved");
+  }).catch(e => setSync("err", e === 401 ? "Token expired. Sign out and sign in again." : "Could not save. Check your connection."))
+    .finally(() => { pending--; render(); });
+}
+
+async function refresh() {
+  if (!token || pending || dragging || editing) return;
+  try { await pull(); setSync("ok", "Synced"); render(); }
+  catch (e) { setSync("err", e === 401 ? "Token expired. Sign out and sign in again." : "Offline. Showing last loaded tasks."); }
+}
+
+// ---- Sign in ----
+async function start() {
+  document.getElementById("login").hidden = true;
+  document.getElementById("app").hidden = false;
+  try { await pull(); ready = true; setSync("ok", "Synced"); }
+  catch (e) {
+    if (e === 401 || e === 403 || e === 404) { signOut("That token can't open life-board-data. Check its repository access and Contents permission."); return; }
+    setSync("err", "Could not load. Check your connection.");
+  }
+  render();
+}
+function signOut(msg = "") {
+  token = null; store("gh_token", null); tasks = []; sha = null; ready = false;
+  document.getElementById("app").hidden = true;
+  document.getElementById("login").hidden = false;
+  document.getElementById("loginErr").textContent = msg;
+}
+document.getElementById("login").onsubmit = e => {
+  e.preventDefault();
+  const v = document.getElementById("token").value.trim();
+  if (!v) return;
+  token = v; store("gh_token", v);
+  document.getElementById("token").value = "";
+  start();
+};
+document.getElementById("signout").onclick = () => signOut();
+
+// ---- Board ----
+document.getElementById("today").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+const hideBox = document.getElementById("hideDone");
+hideBox.checked = hideDone;
+hideBox.onchange = () => { hideDone = hideBox.checked; store("hideDone", hideDone ? "1" : "0"); render(); };
+const byId = id => tasks.find(t => t.id === id);
+
+function render() {
+  if (dragging) return;
+  const chips = document.getElementById("chips");
+  chips.innerHTML = "";
+  for (const c of CATS) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("aria-pressed", c.id === active);
+    const open = tasks.filter(t => t.cat === c.id && t.status !== "done").length;
+    b.textContent = open ? `${c.name} ${open}` : c.name;
+    b.onclick = () => { active = c.id; store("lane", active); render(); };
+    chips.append(b);
+  }
+
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  for (const c of CATS) {
+    const lane = document.createElement("section");
+    lane.className = "lane" + (c.id === active ? " active" : "");
+    lane.style.setProperty("--cat", `var(${c.color})`);
+    const all = tasks.filter(t => t.cat === c.id);
+    const shown = all.filter(t => !(hideDone && t.status === "done")).sort(byPriority);
+    const open = all.filter(t => t.status !== "done").length;
+    const off = ready ? "" : "disabled";
+
+    lane.innerHTML = `
+      <div class="lane-head"><h2></h2><span class="count">${open} open${all.length - open ? ` · ${all.length - open} done` : ""}</span></div>
+      <form class="add">
+        <input type="text" id="new-${c.id}" placeholder="Add a task…" maxlength="200" autocomplete="off" ${off}>
+        <div class="dates">
+          <label class="field"><span>Start</span><input type="date" id="start-${c.id}" value="${today()}" ${off}></label>
+          <label class="field"><span>End</span><input type="date" id="end-${c.id}" ${off}></label>
+          <button class="primary" ${off}>Add</button>
+        </div>
+      </form>
+      <ul></ul>`;
+    lane.querySelector("h2").textContent = c.name;
+    const form = lane.querySelector("form");
+    const titleIn = lane.querySelector(`#new-${c.id}`);
+    titleIn.oninput = () => form.classList.toggle("has-text", !!titleIn.value.trim());
+    form.onsubmit = e => {
+      e.preventDefault();
+      const title = titleIn.value.trim();
+      if (!title) return;
+      const top = all.filter(t => t.status !== "done").reduce((m, t) => Math.min(m, rank(t)), Date.now());
+      const task = { id: newId(), cat: c.id, title, started: lane.querySelector(`#start-${c.id}`).value,
+        ended: lane.querySelector(`#end-${c.id}`).value, status: "pending", created: Date.now(), order: top - 1000 };
+      mutate(`Add: ${title}`, ts => { if (!ts.some(t => t.id === task.id)) ts.push(task); });
+    };
+
+    const ul = lane.querySelector("ul");
+    if (!shown.length) ul.innerHTML = `<li class="empty">${all.length ? "Everything here is done." : "Nothing here yet."}</li>`;
+    for (const t of shown) ul.append(taskRow(t));
+    if (ready && shown.length > 1 && window.Sortable) {
+      Sortable.create(ul, {
+        handle: ".grip", animation: 160,
+        onStart: () => { dragging = true; },
+        onEnd: e => { dragging = false; if (e.oldIndex !== e.newIndex) move(shown, e.oldIndex, e.newIndex); else render(); },
+      });
+    }
+    board.append(lane);
+  }
+}
+
+// One change per drag: the moved task takes a rank between its new neighbours.
+function move(list, from, to) {
+  const rest = list.slice();
+  const [t] = rest.splice(from, 1);
+  rest.splice(to, 0, t);
+  const prev = rest[to - 1], next = rest[to + 1];
+  const order = prev && next ? (rank(prev) + rank(next)) / 2 : prev ? rank(prev) + 1000 : rank(next) - 1000;
+  mutate(`Reorder: ${t.title}`, () => { const x = byId(t.id); if (x) x.order = order; });
+}
+
+function taskRow(t) {
+  const li = document.createElement("li");
+  const s = statusOf(t.status);
+  li.className = "task" + (t.status === "done" ? " done" : "");
+  const when = t.ended ? `${fmt(t.started) || "—"} → ${fmt(t.ended)}` : fmt(t.started);
+  li.innerHTML = `<div class="grip" aria-label="Drag to reorder">${GRIP}</div>
+    <div class="body"><div class="t" tabindex="0" title="Edit"></div>
+    <div class="meta"><span class="when">${when}</span><button class="status" title="Change status"><i></i>${s.name}</button></div></div>`;
+  li.querySelector(".t").textContent = t.title;
+  li.querySelector(".status").style.setProperty("--st", `var(${s.color})`);
+  li.querySelector(".status").onclick = () => {
+    const next = STATUSES[(STATUSES.indexOf(s) + 1) % STATUSES.length].id;
+    mutate(`Status: ${t.title} → ${next}`, () => { const x = byId(t.id); if (x) x.status = next; });
+  };
+  const openEdit = () => { editing = editing === t.id ? null : t.id; confirmDel = null; render(); };
+  li.querySelector(".t").onclick = openEdit;
+  li.querySelector(".t").onkeydown = e => { if (e.key === "Enter") openEdit(); };
+
+  if (editing === t.id) {
+    const f = document.createElement("form");
+    f.className = "edit";
+    f.innerHTML = `<input type="text" id="et-${t.id}" maxlength="200">
+      <label class="field"><span>Start</span><input type="date" id="ed-${t.id}"></label>
+      <label class="field"><span>End</span><input type="date" id="ee-${t.id}"></label>
+      <label class="field full"><span>Status</span><select id="es-${t.id}">${STATUSES.map(x => `<option value="${x.id}">${x.name}</option>`).join("")}</select></label>
+      <div class="row"><button type="button" class="ghost danger">${confirmDel === t.id ? "Tap again to delete" : "Delete"}</button>
+      <span><button type="button" class="ghost cancel">Cancel</button> <button class="primary">Save</button></span></div>`;
+    f.querySelector(`#et-${t.id}`).value = t.title;
+    f.querySelector(`#ed-${t.id}`).value = t.started || "";
+    f.querySelector(`#ee-${t.id}`).value = t.ended || "";
+    f.querySelector(`#es-${t.id}`).value = s.id;
+    f.querySelector(".cancel").onclick = () => { editing = null; render(); };
+    f.querySelector(".danger").onclick = () => {
+      if (confirmDel !== t.id) { confirmDel = t.id; render(); return; }
+      editing = confirmDel = null;
+      mutate(`Delete: ${t.title}`, ts => { const i = ts.findIndex(x => x.id === t.id); if (i >= 0) ts.splice(i, 1); });
+    };
+    f.onsubmit = e => {
+      e.preventDefault();
+      const title = f.querySelector(`#et-${t.id}`).value.trim();
+      if (!title) return;
+      const patch = { title, started: f.querySelector(`#ed-${t.id}`).value, ended: f.querySelector(`#ee-${t.id}`).value, status: f.querySelector(`#es-${t.id}`).value };
+      editing = null;
+      mutate(`Edit: ${title}`, () => { const x = byId(t.id); if (x) Object.assign(x, patch); });
+    };
+    li.querySelector(".body").append(f);
+  }
+  return li;
+}
+
+// Pick up changes made on the other device.
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+setInterval(() => { if (!document.hidden) refresh(); }, 60000);
+
+if (token) start(); else signOut();
+</script>
+</body>
+</html>
