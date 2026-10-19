@@ -99,6 +99,7 @@ ul { list-style: none; margin: 0; padding: 4px 0 10px; border-top: 1px solid var
 .login ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: .85rem; display: grid; gap: 6px }
 .login a { color: var(--fg) }
 .login code { font: .8rem var(--mono); color: var(--fg) }
+.login a.gh { display: block; text-align: center; text-decoration: none; background: var(--accent); color: var(--surface); border-radius: 8px; padding: 12px 16px; font-weight: 500; font-size: .92rem }
 .login .err { color: var(--s-blocked); font-size: .85rem; min-height: 1.2em }
 
 @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
@@ -121,15 +122,15 @@ ul { list-style: none; margin: 0; padding: 4px 0 10px; border-top: 1px solid var
       <div class="eyebrow">Private tracker</div>
       <h1>Life Board</h1>
     </div>
-    <p>Sign in with a GitHub token. Your tasks live in your private repo <code>Tejas00naik/life-board-data</code>.</p>
+    <p>Your tasks live in your private repo <code>life-board-data</code>. Sign in once on each device.</p>
+    <a class="primary gh" href="https://github.com/settings/personal-access-tokens/new?name=Life+Board&description=Life+Board+app+access+to+life-board-data&target_name=Tejas00naik&expires_in=366&contents=write" target="_blank" rel="noopener">1 · Continue with GitHub</a>
     <ol>
-      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a fine-grained token</a> on GitHub.</li>
-      <li>Repository access: <b>Only select repositories</b> → <code>life-board-data</code>.</li>
-      <li>Permissions → Repository → <b>Contents: Read and write</b>.</li>
-      <li>Generate, copy and paste it below. You do this once per device.</li>
+      <li>On the GitHub page, under <b>Repository access</b>, choose <b>Only select repositories</b> → <code>life-board-data</code>. Everything else is already filled in.</li>
+      <li>Click <b>Generate token</b>, then copy it.</li>
+      <li>Come back here and paste it below.</li>
     </ol>
-    <input type="password" id="token" placeholder="github_pat_…" autocomplete="off" aria-label="GitHub token">
-    <button class="primary" id="signin">Sign in with GitHub</button>
+    <input type="password" id="token" placeholder="2 · Paste token (github_pat_…)" autocomplete="off" aria-label="GitHub token">
+    <button class="primary" id="signin">Sign in</button>
     <div class="err" id="loginErr"></div>
   </form>
 
@@ -254,14 +255,16 @@ function signOut(msg = "") {
   document.getElementById("login").hidden = false;
   document.getElementById("loginErr").textContent = msg;
 }
-document.getElementById("login").onsubmit = e => {
-  e.preventDefault();
+function signIn() {
   const v = document.getElementById("token").value.trim();
-  if (!v) return;
+  if (!v) { document.getElementById("loginErr").textContent = "Paste your GitHub token first. Tap “Continue with GitHub” to create one."; return; }
   token = v; store("gh_token", v);
   document.getElementById("token").value = "";
   start();
-};
+}
+document.getElementById("login").onsubmit = e => { e.preventDefault(); signIn(); };
+// Signing in straight away on paste saves a tap on the phone.
+document.getElementById("token").addEventListener("paste", () => setTimeout(signIn, 0));
 document.getElementById("signout").onclick = () => signOut();
 
 // ---- Board ----
